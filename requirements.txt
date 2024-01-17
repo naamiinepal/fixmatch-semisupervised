@@ -1,1 +1,3 @@
 streamlit
+medmnist
+pytorch-ignite
