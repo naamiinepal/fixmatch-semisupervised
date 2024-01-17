@@ -6,7 +6,7 @@ IMG_SIZE = 28
 # preprocessing
 data_transform = transforms.Compose([
     transforms.ToTensor(),
-    transforms.Resize(size=IMG_SIZE),
+    transforms.Resize(size=(IMG_SIZE,IMG_SIZE)),
     transforms.Normalize(mean=[.5], std=[.5])
 ])
 
