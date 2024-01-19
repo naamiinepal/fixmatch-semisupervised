@@ -6,20 +6,22 @@ from ignite.contrib.handlers import TensorboardLogger, global_step_from_engine
 
 import torch
 
-from ssl_fork.models.model import BasicNet
-from ssl_fork.datasets.medmnist_dataset import n_channels,n_classes
-from ssl_fork.datasets.medmnist_dataset import train_dataset, test_dataset
+
 import torch.utils.data as data
 from torch import optim
 from torch import nn
 from ignite.metrics import Accuracy,Loss
 
-NUM_EPOCHS = 30
-BATCH_SIZE = 128
-lr = 0.001
+from ssl_fork.models.model import EfficientNetB0
+from ssl_fork.datasets.augmentations.transforms import get_image_transform
+from ssl_fork.datasets.isic_dataset import get_dataset
 
+NUM_EPOCHS = 30
+BATCH_SIZE = 32
+lr = 0.001
+IMG_SIZE = 224
 # how many batches to wait before logging training status
-log_interval = 100
+log_interval = 10
 
 criterion = nn.CrossEntropyLoss()
 
@@ -30,9 +32,14 @@ val_metrics = {
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-model = BasicNet(num_classes=n_classes,in_channels=n_channels,dropout=0.2).to(device)
+model = EfficientNetB0(num_classes=2,load_imagenet_weights=True).to(device)
 
 # encapsulate data into dataloader form
+img_transform = get_image_transform(IMG_SIZE)
+
+train_dataset = get_dataset(img_transform=img_transform,train=True)
+test_dataset = get_dataset(img_transform=img_transform,train=False)
+
 train_loader = data.DataLoader(dataset=train_dataset, batch_size=BATCH_SIZE, shuffle=True)
 train_loader_at_eval = data.DataLoader(dataset=train_dataset, batch_size=2*BATCH_SIZE, shuffle=False)
 val_loader = data.DataLoader(dataset=test_dataset, batch_size=2*BATCH_SIZE, shuffle=False)

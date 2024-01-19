@@ -3,8 +3,11 @@ from ssl_fork.datasets.augmentations.transforms import get_image_transform
 import torchvision
 from ssl_fork.datasets.csv_dataset import CSVDataset
 
-data_root_dir = 'isic_challenge/ISBI2016_ISIC_Part3B_Training_Data'
-csv_path = 'isic_challenge/ISBI2016_ISIC_Part3B_Training_GroundTruth.csv'
+train_data_root_dir = 'isic_challenge/ISBI2016_ISIC_Part3B_Training_Data'
+train_csv_path = 'isic_challenge/ISBI2016_ISIC_Part3B_Training_GroundTruth.csv'
+test_data_root_dir = 'isic_challenge/ISBI2016_ISIC_Part3B_Test_Data'
+test_csv_path = 'isic_challenge/ISBI2016_ISIC_Part3B_Test_GroundTruth.csv'
+
 IMG_SIZE = 224
 img_transform = get_image_transform(IMG_SIZE)
 
@@ -19,21 +22,25 @@ def isic_label_to_idx(label):
 
 label_transform = torchvision.transforms.Lambda(isic_label_to_idx)
 
-def get_dataset(start_index,end_index,img_transform=img_transform):
+def get_dataset(start_index=0,end_index=-1,img_transform=img_transform,train=True):
+    if train:
+        csv_path = train_csv_path
+        data_root_dir = train_data_root_dir
+        label_transform = label_transform
+    else:
+        csv_path = test_csv_path
+        data_root_dir = test_data_root_dir
+        label_transform = torchvision.transforms.Lambda(int) # because test csv labels are in 0.0,1.0 format
     return CSVDataset(data_root_dir,csv_path,img_transform,label_transform,start_index=start_index,end_index=end_index)
 
 
 if __name__ == '__main__':
-    from ssl_fork.datasets.augmentations.transforms import get_image_transform,get_image_strong_augment_transform
-    strong_augment_transform = get_image_strong_augment_transform(IMG_SIZE)
+    from ssl_fork.datasets.augmentations.transforms import get_image_transform
+    from ssl_fork.datasets.isic_dataset import get_dataset
     image_transform = get_image_transform(IMG_SIZE)
 
-    isic_dataset = CSVDataset(data_root_dir,csv_path,img_transform=None,label_transform=label_transform)
+    train_isic_dataset = get_dataset(img_transform=img_transform,train=True)
+    test_isic_dataset = get_dataset(img_transform=img_transform,train=False)
 
-    img,label = isic_dataset[0]
+    print(f'train {len(train_isic_dataset)} test {len(test_isic_dataset)}')
 
-    weak_augment = image_transform(img)
-    strong_augment = strong_augment_transform(img)
-
-    torchvision.transforms.ToPILImage()(weak_augment).show()
-    torchvision.transforms.ToPILImage()(strong_augment).show()

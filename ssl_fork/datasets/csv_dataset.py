@@ -9,8 +9,8 @@ class CSVDataset(Dataset):
         csv_path: str,
         img_transform=None,
         label_transform=None,
-        label_column_name="label",
-        image_column_name="id",
+        label_column_name=None,
+        image_column_name=None,
         suffix=".jpg",
         start_index=0,
         end_index=-1 # only take this many samples from CSV
@@ -29,11 +29,17 @@ class CSVDataset(Dataset):
     def read_csv(self,start_index,end_index):
         import pandas as pd
 
-        df = pd.read_csv(self.csv_path)
-        image_paths = df[self.image_column_name].to_list()[start_index:end_index]
+        df = pd.read_csv(self.csv_path,header=None)
+        if self.image_column_name is None:
+            image_paths = df[0].to_list()[start_index:end_index]
+        else:
+            image_paths = df[self.image_column_name].to_list()[start_index:end_index]
+        
         # allow empty labels for test data sets
-        if "label" in df.columns:
+        if self.label_column_name and (self.label_column_name in df.columns):
             label_paths = df[self.label_column_name].to_list()[start_index:end_index]
+        elif len(df.keys()) >=2:
+            label_paths = df[1].to_list()[start_index:end_index]
         else:
             label_paths = None
         return image_paths, label_paths

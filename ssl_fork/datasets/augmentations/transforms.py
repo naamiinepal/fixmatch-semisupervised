@@ -16,7 +16,7 @@ def get_image_transform(IMG_SIZE):
         [
             transforms.Lambda(PIL.Image.open),
             transforms.ToTensor(),
-            transforms.Resize(size=(IMG_SIZE, IMG_SIZE)),
+            transforms.Resize(size=(IMG_SIZE, IMG_SIZE),antialias=True),
             transforms.Normalize(mean=[0.5], std=[0.5]),
         ]
     )
@@ -27,7 +27,7 @@ def get_image_transform(IMG_SIZE):
 def pre_augment_transform(IMG_SIZE):
     data_transform = transforms.Compose([
         transforms.Lambda(PIL.Image.open),
-        transforms.Resize(size=(IMG_SIZE, IMG_SIZE)),
+        transforms.Resize(size=(IMG_SIZE, IMG_SIZE),antialias=True),
         transforms.ToTensor(),    
     ])
     return data_transform
