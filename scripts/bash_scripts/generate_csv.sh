@@ -1,0 +1,1 @@
+python scripts/generate_random_split.py --csv isic_challenge/ISBI2016_ISIC_Part3B_Training_GroundTruth.csv
