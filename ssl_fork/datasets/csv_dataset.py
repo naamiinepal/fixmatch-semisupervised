@@ -60,7 +60,7 @@ class CSVDataset(Dataset):
         if self.img_transform:
             img = self.img_transform(img)
 
-        if self.label_transform and label:
+        if self.label_transform and label is not None:
             label = self.label_transform(label)
 
         return img, label

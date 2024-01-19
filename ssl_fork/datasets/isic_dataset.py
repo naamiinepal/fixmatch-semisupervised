@@ -1,4 +1,4 @@
-from regex import D
+import torch
 from ssl_fork.datasets.augmentations.transforms import get_image_transform
 import torchvision
 from ssl_fork.datasets.csv_dataset import CSVDataset
@@ -20,17 +20,19 @@ n_channels = 3
 def isic_label_to_idx(label):
     return ISIC_LABELS_TO_IDX[label]
 
-label_transform = torchvision.transforms.Lambda(isic_label_to_idx)
+def convert_to_long_type(label):
+    return torch.tensor(label).long()
 
 def get_dataset(start_index=0,end_index=-1,img_transform=img_transform,train=True):
     if train:
         csv_path = train_csv_path
         data_root_dir = train_data_root_dir
-        label_transform = label_transform
+        label_transform = torchvision.transforms.Lambda(isic_label_to_idx)
     else:
         csv_path = test_csv_path
         data_root_dir = test_data_root_dir
-        label_transform = torchvision.transforms.Lambda(int) # because test csv labels are in 0.0,1.0 format
+        label_transform = torchvision.transforms.Lambda(convert_to_long_type) # because test csv labels are in 0.0,1.0 format
+    
     return CSVDataset(data_root_dir,csv_path,img_transform,label_transform,start_index=start_index,end_index=end_index)
 
 
@@ -43,4 +45,7 @@ if __name__ == '__main__':
     test_isic_dataset = get_dataset(img_transform=img_transform,train=False)
 
     print(f'train {len(train_isic_dataset)} test {len(test_isic_dataset)}')
+
+    img, label = test_isic_dataset[0]
+    print(f'Test sample {img.shape} {label}')
 

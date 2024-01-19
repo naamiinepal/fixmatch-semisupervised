@@ -1,21 +1,32 @@
 from time import gmtime, strftime
-
+import random
 from ignite.engine import Engine, Events
 from ignite.handlers.checkpoint import ModelCheckpoint
 from ignite.contrib.handlers import TensorboardLogger, global_step_from_engine
 
 import torch
-
+import numpy as np
 
 import torch.utils.data as data
 from torch import optim
 from torch import nn
-from ignite.metrics import Accuracy,Loss
+from ignite.metrics import Accuracy, Loss
 
 from ssl_fork.models.model import EfficientNetB0
 from ssl_fork.datasets.augmentations.transforms import get_image_transform
 from ssl_fork.datasets.isic_dataset import get_dataset
 
+SEED = 98123  # for reproducibility
+
+
+def seed_everything(SEED):
+    torch.manual_seed(SEED)
+    random.seed(SEED)
+    np.random.seed(SEED)
+    torch.use_deterministic_algorithms(True)
+
+
+seed_everything(SEED)  # additionally seed the torch generator
 NUM_EPOCHS = 30
 BATCH_SIZE = 32
 lr = 0.001
@@ -25,24 +36,30 @@ log_interval = 10
 
 criterion = nn.CrossEntropyLoss()
 
-val_metrics = {
-    "accuracy": Accuracy(),
-    "loss": Loss(criterion)
-}
+val_metrics = {"accuracy": Accuracy(), "loss": Loss(criterion)}
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-model = EfficientNetB0(num_classes=2,load_imagenet_weights=True).to(device)
+model = EfficientNetB0(num_classes=2, load_imagenet_weights=True).to(device)
 
 # encapsulate data into dataloader form
 img_transform = get_image_transform(IMG_SIZE)
 
-train_dataset = get_dataset(img_transform=img_transform,train=True)
-test_dataset = get_dataset(img_transform=img_transform,train=False)
+train_dataset = get_dataset(img_transform=img_transform, train=True)
+test_dataset = get_dataset(img_transform=img_transform, train=False)
 
-train_loader = data.DataLoader(dataset=train_dataset, batch_size=BATCH_SIZE, shuffle=True)
-train_loader_at_eval = data.DataLoader(dataset=train_dataset, batch_size=2*BATCH_SIZE, shuffle=False)
-val_loader = data.DataLoader(dataset=test_dataset, batch_size=2*BATCH_SIZE, shuffle=False)
+# for reproducibility, seed the dataloader worker thread
+g = torch.Generator()
+g.manual_seed(SEED)
+train_loader = data.DataLoader(
+    dataset=train_dataset, batch_size=BATCH_SIZE, shuffle=True, generator=g
+)
+train_loader_at_eval = data.DataLoader(
+    dataset=train_dataset, batch_size=2 * BATCH_SIZE, shuffle=False
+)
+val_loader = data.DataLoader(
+    dataset=test_dataset, batch_size=2 * BATCH_SIZE, shuffle=False
+)
 
 batch = next(iter(train_loader))
 optimizer = optim.Adam(model.parameters(), lr=lr)
@@ -53,7 +70,7 @@ def supervised_train_step(engine, batch):
     optimizer.zero_grad()
     x, y = batch[0].to(device), batch[1].to(device)
     y_pred = model(x)
-    loss = criterion(y_pred,y.squeeze(-1))
+    loss = criterion(y_pred, y.squeeze(-1))
     loss.backward()
     optimizer.step()
     return loss.item()
@@ -62,9 +79,10 @@ def supervised_train_step(engine, batch):
 def validation_step(engine, batch):
     model.eval()
     with torch.no_grad():
-        x,y = batch[0].to(device), batch[1].to(device)
+        x, y = batch[0].to(device), batch[1].to(device)
         y_pred = model(x)
         return y_pred, y.squeeze(-1)
+
 
 trainer = Engine(supervised_train_step)
 
@@ -72,10 +90,9 @@ train_evaluator = Engine(validation_step)
 val_evaluator = Engine(validation_step)
 
 
-
 # attach metrics to evaluators
 for name, metric in val_metrics.items():
-    metric.attach(train_evaluator,name)
+    metric.attach(train_evaluator, name)
 
 for name, metric in val_metrics.items():
     metric.attach(val_evaluator, name)
@@ -83,24 +100,33 @@ for name, metric in val_metrics.items():
 
 @trainer.on(Events.ITERATION_COMPLETED(every=log_interval))
 def log_training_loss(engine):
-    print(f"Epoch[{engine.state.epoch}], Iter[{engine.state.iteration}] Loss: {engine.state.output:.2f}")
+    print(
+        f"Epoch[{engine.state.epoch}], Iter[{engine.state.iteration}] Loss: {engine.state.output:.2f}"
+    )
+
 
 @trainer.on(Events.EPOCH_COMPLETED)
 def log_training_results(trainer):
     train_evaluator.run(train_loader)
     metrics = train_evaluator.state.metrics
-    print(f"Training Results - Epoch[{trainer.state.epoch}] Avg accuracy: {metrics['accuracy']:.2f} Avg loss: {metrics['loss']:.2f}")
+    print(
+        f"Training Results - Epoch[{trainer.state.epoch}] Avg accuracy: {metrics['accuracy']:.2f} Avg loss: {metrics['loss']:.2f}"
+    )
 
 
 @trainer.on(Events.EPOCH_COMPLETED)
 def log_validation_results(trainer):
     val_evaluator.run(val_loader)
     metrics = val_evaluator.state.metrics
-    print(f"Validation Results - Epoch[{trainer.state.epoch}] Avg accuracy: {metrics['accuracy']:.2f} Avg loss: {metrics['loss']:.2f}")
+    print(
+        f"Validation Results - Epoch[{trainer.state.epoch}] Avg accuracy: {metrics['accuracy']:.2f} Avg loss: {metrics['loss']:.2f}"
+    )
+
 
 # Score function to return current value of any metric we defined above in val_metrics
 def score_function(engine):
     return engine.state.metrics["accuracy"]
+
 
 date_time = strftime("%Y-%m-%d %H:%M:%S", gmtime())
 
@@ -111,9 +137,11 @@ model_checkpoint = ModelCheckpoint(
     filename_prefix="best",
     score_function=score_function,
     score_name="accuracy",
-    global_step_transform=global_step_from_engine(trainer), # helps fetch the trainer's state
+    global_step_transform=global_step_from_engine(
+        trainer
+    ),  # helps fetch the trainer's state
 )
-  
+
 # Save the model after every epoch of val_evaluator is completed
 val_evaluator.add_event_handler(Events.COMPLETED, model_checkpoint, {"model": model})
 
