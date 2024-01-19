@@ -1,16 +1,15 @@
 from time import gmtime, strftime
-import random
 from ignite.engine import Engine, Events
 from ignite.handlers.checkpoint import ModelCheckpoint
 from ignite.contrib.handlers import TensorboardLogger, global_step_from_engine
 
 import torch
-import numpy as np
 
 import torch.utils.data as data
 from torch import optim
 from torch import nn
 from ignite.metrics import Accuracy, Loss
+from semilearn.core.utils import seed_everything
 
 from semilearn.models.model import EfficientNetB0
 from semilearn.datasets.augmentations.transforms import get_image_transform
@@ -20,25 +19,20 @@ from argparse import ArgumentParser
 SEED = 98123  # for reproducibility
 
 
-def seed_everything(SEED):
-    torch.manual_seed(SEED)
-    random.seed(SEED)
-    np.random.seed(SEED)
-    torch.use_deterministic_algorithms(True)
+
 
 
 seed_everything(SEED)  # additionally seed the torch generator
 
 parser = ArgumentParser()
-parser.add_argument('--num_labels','-nl',default=40)
+parser.add_argument('--supervised_only','-so',default=False,action='store_true')
 
 args = parser.parse_args()
 
 NUM_EPOCHS = 30
-BATCH_SIZE = 32
+BATCH_SIZE = 16
 lr = 0.001
 IMG_SIZE = 224
-NUM_LABELS = args.num_labels
 
 # how many batches to wait before logging training status
 log_interval = 10
@@ -54,7 +48,12 @@ model = EfficientNetB0(num_classes=2, load_imagenet_weights=True).to(device)
 # encapsulate data into dataloader form
 img_transform = get_image_transform(IMG_SIZE)
 
-train_dataset = get_dataset(img_transform=img_transform, train=True)
+if args.supervised_only:
+    dataset_type = 'supervised_only'
+else:
+    dataset_type = 'fully_supervised'
+
+train_dataset = get_dataset(img_transform=img_transform, train=True,dataset_type=dataset_type)
 test_dataset = get_dataset(img_transform=img_transform, train=False)
 
 # for reproducibility, seed the dataloader worker thread
@@ -141,7 +140,7 @@ date_time = strftime("%Y-%m-%d %H:%M:%S", gmtime())
 
 # Checkpoint to store n_saved best models wrt score function
 model_checkpoint = ModelCheckpoint(
-    f"checkpoint/{date_time}",
+    f"checkpoint/{dataset_type}/{date_time}",
     n_saved=2,
     filename_prefix="best",
     score_function=score_function,
@@ -155,7 +154,7 @@ model_checkpoint = ModelCheckpoint(
 val_evaluator.add_event_handler(Events.COMPLETED, model_checkpoint, {"model": model})
 
 # Define a Tensorboard logger
-tb_logger = TensorboardLogger(log_dir=f"tb-logger/{date_time}")
+tb_logger = TensorboardLogger(log_dir=f"tb-logger/{dataset_type}/{date_time}")
 
 # Attach handler to plot trainer's loss every 100 iterations
 tb_logger.attach_output_handler(

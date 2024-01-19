@@ -1,55 +1,45 @@
 import matplotlib.pyplot as plt
-import torchvision.transforms as transforms
+from torchvision import transforms
 import random
 
-import numpy as np
 import PIL
 import PIL.ImageDraw
 import PIL.ImageEnhance
 import PIL.ImageOps
 
-def read_image(img_path):
-    return plt.imread(img_path).copy()
-
 def get_image_transform(IMG_SIZE):
+    # weak augmentation : RandomCrop, Random Horizontal/Vertical Flip
     data_transform = transforms.Compose(
         [
             transforms.Lambda(PIL.Image.open),
             transforms.ToTensor(),
-            transforms.Resize(size=(IMG_SIZE, IMG_SIZE),antialias=True),
+            transforms.RandomVerticalFlip(),
+            transforms.RandomHorizontalFlip(),
+            transforms.Resize(size=(IMG_SIZE+28,IMG_SIZE+28),antialias=True),
+            transforms.RandomCrop(size=(IMG_SIZE, IMG_SIZE)),
             transforms.Normalize(mean=[0.5], std=[0.5]),
         ]
     )
     return data_transform
 
 
-
-def pre_augment_transform(IMG_SIZE):
-    data_transform = transforms.Compose([
-        transforms.Lambda(PIL.Image.open),
-        transforms.Resize(size=(IMG_SIZE, IMG_SIZE),antialias=True),
-        transforms.ToTensor(),    
-    ])
-    return data_transform
-
-
-
-def get_image_strong_augment_transform(num_aug_operations = 6):
-    # convert to PIL Image and back to tensor
+def get_image_strong_augment_transform(IMG_SIZE,num_aug_operations = 6):
+    # additional RandAugment
     data_transform = transforms.Compose(
         [
-            transforms.ToPILImage(),
-            RandAugment(num_aug_operations),
+            transforms.Lambda(PIL.Image.open),
+            transforms.RandAugment(num_ops=num_aug_operations),
+            transforms.RandomVerticalFlip(),
+            transforms.RandomHorizontalFlip(),
+            transforms.Resize(size=(IMG_SIZE+28,IMG_SIZE+28),antialias=True),
+            transforms.RandomCrop(size=(IMG_SIZE, IMG_SIZE)),
             transforms.ToTensor(),
+            transforms.Normalize(mean=[0.5], std=[0.5]),
         ]
     )
     return data_transform
 
-def post_augment_transform():
-    data_transform = transforms.Compose([
-            transforms.Normalize(mean=[0.5], std=[0.5]),
-    ])
-    return data_transform
+
 
 
 class AutoContrast:
@@ -144,7 +134,7 @@ if __name__ == "__main__":
     )
 
     img = PIL.Image.open(sample_img_path)
-    randaug = RandAugment(6)  # apply one random augmentation
+    randaug = transforms.RandAugment(6)  # apply one random augmentation
     aug_img = randaug(img)
 
     import matplotlib.pyplot as plt

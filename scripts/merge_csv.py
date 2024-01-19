@@ -17,4 +17,4 @@ for df in df_list[1:]:
     merged_df = pd.concat([merged_df,df],ignore_index=True)
 
 merged_csv_path = Path(args.csvs[0]).parent / str(args.stem + '.csv')
-merged_df.to_csv(path_or_buf=str(merged_csv_path),header=None) # save in the same director as the first csv
+merged_df.to_csv(path_or_buf=str(merged_csv_path),header=None,index=False) # save in the same director as the first csv
