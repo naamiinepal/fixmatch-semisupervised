@@ -8,7 +8,10 @@ from torch import optim
 from torch import nn
 from ignite.metrics import Accuracy, Loss
 from ignite.engine import Engine, Events
-from ignite.contrib.handlers.tensorboard_logger import TensorboardLogger,global_step_from_engine
+from ignite.contrib.handlers.tensorboard_logger import (
+    TensorboardLogger,
+    global_step_from_engine,
+)
 from ignite.handlers.checkpoint import ModelCheckpoint
 
 from semilearn.core.criterions.cross_entropy import ce_loss
@@ -28,7 +31,6 @@ mu = 5  # ratio of unlabelled to labelled data in a single batch
 P_CUTOFF = 0.95  # softmax threshold cutoff for pseudo label
 lambda_u = 1.0
 
-verbose = True
 
 SEED = 98123  # for reproducibility
 
@@ -84,7 +86,6 @@ img_batch, label_batch = next(iter(labeled_train_loader))
 weak_img_batch, strong_img_batch, label_batch = next(iter(unlabeled_train_loader))
 
 
-
 # Model Training
 def train_step(labeled_batch_data, unlabeled_batch_data):
     model.train()
@@ -128,23 +129,26 @@ def train_step(labeled_batch_data, unlabeled_batch_data):
     optimizer.step()  # update weights
 
     return {
-        'batch_total loss':total_loss.item(),
-        'batch_supervised loss':supervised_loss.item(),
-        'batch_unsupervised loss':unsupervised_loss.item(),
-        'batch_confident pseudo labels':mask.sum().item(),
+        "batch_total_loss": total_loss.item(),
+        "batch_supervised_loss": supervised_loss.item(),
+        "batch_unsupervised_loss": unsupervised_loss.item(),
+        "batch_confident_pseudo_labels": mask.sum().item(),
     }
+
 
 def validation_step(engine, batch):
     model.eval()
     with torch.no_grad():
-        x,y=batch[0].to(device), batch[1].to(device)
+        x, y = batch[0].to(device), batch[1].to(device)
         y_pred = model(x)
         return y_pred, y
 
-def log_training_loss(train_out_dict,state):
+
+def log_training_loss(train_out_dict, state):
     print(
         f"Epoch[{state['epoch']}], Iter[{state['iteration']}] Loss: {train_out_dict['batch_total_loss']:.2f}"
     )
+
 
 train_evaluator = Engine(validation_step)
 val_evaluator = Engine(validation_step)
@@ -155,6 +159,7 @@ for name, metric in val_metrics.items():
 
 for name, metric in val_metrics.items():
     metric.attach(val_evaluator, name)
+
 
 def log_training_results():
     train_evaluator.run(train_loader_at_eval)
@@ -171,13 +176,16 @@ def log_validation_results():
         f"Validation Results - Epoch[{val_evaluator.state.epoch}] Avg accuracy: {metrics['accuracy']:.2f} Avg loss: {metrics['loss']:.2f}"
     )
 
+
 date_time = strftime("%Y-%m-%d %H:%M:%S", gmtime())
 
 # Checkpoint to store n_saved best models wrt score function
 
+
 # Score function to return current value of any metric we defined above in val_metrics
 def score_function(engine):
     return engine.state.metrics["accuracy"]
+
 
 model_checkpoint = ModelCheckpoint(
     f"checkpoint/semi-supervised/{date_time}",
@@ -205,12 +213,18 @@ for tag, evaluator in [("training", train_evaluator), ("validation", val_evaluat
 
 for epoch in range(NUM_EPOCHS):
     i = 0
-    for labeled_batch_data, unlabeled_batch_data in zip(labeled_train_loader,unlabeled_train_loader):
-        train_out_dict = train_step(labeled_batch_data,unlabeled_batch_data)
+    for labeled_batch_data, unlabeled_batch_data in zip(
+        labeled_train_loader, unlabeled_train_loader
+    ):
+        train_out_dict = train_step(labeled_batch_data, unlabeled_batch_data)
 
         if i % log_interval:
-            tb_logger.writer.add_scalars('training',train_out_dict,global_step=epoch*len(labeled_train_loader)+i)
-            log_training_loss(train_out_dict,{'epoch':epoch+1,'iteration':i})
-        i = i+1 # iteration counter
+            tb_logger.writer.add_scalars(
+                "training",
+                train_out_dict,
+                global_step=epoch * len(labeled_train_loader) + i,
+            )
+            log_training_loss(train_out_dict, {"epoch": epoch + 1, "iteration": i})
+        i = i + 1  # iteration counter
     log_training_results()
     log_validation_results()
