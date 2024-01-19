@@ -8,8 +8,8 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-from ssl_fork.core.criterions.consistency import ConsistencyLoss
-from ssl_fork.core.criterions.cross_entropy import CELoss
+from semilearn.core.criterions.consistency import ConsistencyLoss
+from semilearn.core.criterions.cross_entropy import CELoss
 
 
 class AlgorithmBase:

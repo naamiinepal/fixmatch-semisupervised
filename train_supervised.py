@@ -12,9 +12,10 @@ from torch import optim
 from torch import nn
 from ignite.metrics import Accuracy, Loss
 
-from ssl_fork.models.model import EfficientNetB0
-from ssl_fork.datasets.augmentations.transforms import get_image_transform
-from ssl_fork.datasets.isic_dataset import get_dataset
+from semilearn.models.model import EfficientNetB0
+from semilearn.datasets.augmentations.transforms import get_image_transform
+from semilearn.datasets.isic_dataset import get_dataset
+from argparse import ArgumentParser
 
 SEED = 98123  # for reproducibility
 
@@ -27,10 +28,18 @@ def seed_everything(SEED):
 
 
 seed_everything(SEED)  # additionally seed the torch generator
+
+parser = ArgumentParser()
+parser.add_argument('--num_labels','-nl',default=40)
+
+args = parser.parse_args()
+
 NUM_EPOCHS = 30
 BATCH_SIZE = 32
 lr = 0.001
 IMG_SIZE = 224
+NUM_LABELS = args.num_labels
+
 # how many batches to wait before logging training status
 log_interval = 10
 
@@ -151,7 +160,7 @@ tb_logger = TensorboardLogger(log_dir=f"tb-logger/{date_time}")
 # Attach handler to plot trainer's loss every 100 iterations
 tb_logger.attach_output_handler(
     trainer,
-    event_name=Events.ITERATION_COMPLETED(every=100),
+    event_name=Events.ITERATION_COMPLETED(every=log_interval),
     tag="training",
     output_transform=lambda loss: {"batch_loss": loss},
 )

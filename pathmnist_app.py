@@ -3,8 +3,8 @@ from PIL import Image
 import matplotlib.pyplot as plt
 import torch
 from torch import nn
-from ssl_fork.models.model import BasicNet
-from ssl_fork.datasets.medmnist_dataset import pathmnist_data_transform,n_classes
+from semilearn.models.model import BasicNet
+from semilearn.datasets.medmnist_dataset import pathmnist_data_transform,n_classes
 from medmnist import INFO
 
 data_flag = 'pathmnist'

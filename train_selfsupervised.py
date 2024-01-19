@@ -1,19 +1,18 @@
 import sys
 import torch
 
-from ssl_fork.models.model import EfficientNetB0
+from semilearn.models.model import EfficientNetB0
 import torch.utils.data as data
 from torch import optim
 from torch import nn
 from ignite.metrics import Accuracy, Loss
 
-from ssl_fork.core.criterions.cross_entropy import ce_loss
-from ssl_fork.datasets.isic_dataset import (
+from semilearn.core.criterions.cross_entropy import ce_loss
+from semilearn.datasets.isic_dataset import (
     get_dataset,
     n_classes,
-    n_channels,
 )
-from ssl_fork.datasets.augmentations.transforms import (
+from semilearn.datasets.augmentations.transforms import (
     get_image_strong_augment_transform,
     get_image_transform,
     post_augment_transform,

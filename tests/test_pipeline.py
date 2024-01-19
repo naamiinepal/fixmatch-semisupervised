@@ -1,6 +1,6 @@
 import torch
 
-from ssl_fork.datasets.isic_dataset import n_classes
+from semilearn.datasets.isic_dataset import n_classes
 
 from torchvision.models.efficientnet import EfficientNet,_efficientnet_conf
 

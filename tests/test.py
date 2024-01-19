@@ -1,10 +1,10 @@
 from unittest import TestCase
 
 import torch
-from ssl_fork.models.model import EfficientNetB0
-from ssl_fork.datasets.medmnist_dataset import train_dataset, test_dataset
-from ssl_fork.datasets.csv_dataset import CSVDataset
-from ssl_fork.core.criterions.cross_entropy import ce_loss
+from semilearn.models.model import EfficientNetB0
+from semilearn.datasets.medmnist_dataset import train_dataset, test_dataset
+from semilearn.datasets.csv_dataset import CSVDataset
+from semilearn.core.criterions.cross_entropy import ce_loss
 
 class TestSSL(TestCase):
     def test_model(self):

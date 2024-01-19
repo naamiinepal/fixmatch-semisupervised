@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 
-from ssl_fork.core.criterions.cross_entropy import ce_loss
+from semilearn.core.criterions.cross_entropy import ce_loss
 
 
 def consistency_loss(logits, targets, mask=None):
