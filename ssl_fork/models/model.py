@@ -1,21 +1,17 @@
 from torch import nn
-import torch
-from torchvision.models.efficientnet import efficientnet_b0
+from torchvision.models.efficientnet import EfficientNet,_efficientnet_conf
 
-import torchvision
 
 class EfficientNetB0(nn.Module):
     def __init__(self, num_classes) -> None:
         super(EfficientNetB0,self).__init__()
-        self.base_model = nn.Sequential(*list(efficientnet_b0(weights=torchvision.models.EfficientNet_B0_Weights.DEFAULT).children())[:-2])
-        self.fc = nn.Sequential(
-            nn.Dropout(p=0.2),
-            nn.Linear(in_features=1280,out_features=num_classes,bias=True)
-        )
 
+        inverted_residual_setting, last_channel = _efficientnet_conf("efficientnet_b0", width_mult=1.0, depth_mult=1.0)
+
+        self.model = EfficientNet(inverted_residual_setting,dropout=0.2,num_classes=num_classes,last_channel=last_channel)
     
     def forward(self,x):
-        return self.fc(self.base_model(x))
+        return self.model(x)
     
 # define a simple CNN model
 

@@ -6,9 +6,9 @@ from ignite.contrib.handlers import TensorboardLogger, global_step_from_engine
 
 import torch
 
-from model import BasicNet,EfficientNetB0
-from dataset import n_channels,n_classes
-from dataset import train_dataset, test_dataset
+from ssl_fork.models.model import BasicNet
+from ssl_fork.datasets.medmnist_dataset import n_channels,n_classes
+from ssl_fork.datasets.medmnist_dataset import train_dataset, test_dataset
 import torch.utils.data as data
 from torch import optim
 from torch import nn

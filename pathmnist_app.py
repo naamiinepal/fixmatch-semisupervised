@@ -1,14 +1,11 @@
-import pandas as pd
 import streamlit as st
 from PIL import Image
 import matplotlib.pyplot as plt
 import torch
 from torch import nn
-from model import BasicNet
-from dataset import data_transform,n_classes
-import medmnist
+from ssl_fork.models.model import BasicNet
+from ssl_fork.datasets.medmnist_dataset import pathmnist_data_transform,n_classes
 from medmnist import INFO
-import numpy as np
 
 data_flag = 'pathmnist'
 
@@ -18,7 +15,7 @@ def predict(image):
     model = BasicNet(in_channels=3,num_classes=n_classes) 
     model.load_state_dict(torch.load(classifier_model,map_location='cpu'))
     model.eval()
-    image_tensor = data_transform(image)
+    image_tensor = pathmnist_data_transform(image)
     out_logit = model(image_tensor.unsqueeze(0))
     scores = nn.Softmax(dim=1)(out_logit).squeeze(0)
     prediction = torch.argmax(scores).item()
