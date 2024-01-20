@@ -13,8 +13,7 @@ from ignite.metrics import Accuracy, Loss, Precision, Recall,Fbeta
 from semilearn.core.utils import get_latest_checkpoint, seed_everything
 
 from semilearn.models.model import EfficientNetB0
-from semilearn.datasets.augmentations.transforms import get_image_transform
-from semilearn.datasets.isic_dataset import get_test_dataset, get_train_dataset, get_val_dataset
+from semilearn.datasets.mednist_dataset import get_test_dataset, get_train_dataset, get_val_dataset, train_transform, val_transform,strong_transform, n_classes
 from argparse import ArgumentParser
 
 SEED = 98123  # for reproducibility
@@ -34,6 +33,7 @@ NUM_EPOCHS = args.num_epochs
 BATCH_SIZE = 16
 lr = 0.001
 IMG_SIZE = 224
+DATASET_NAME = 'mednist'
 
 # how many batches to wait before logging training status
 log_interval = 10
@@ -44,20 +44,19 @@ val_metrics = {"accuracy": Accuracy(), "loss": Loss(criterion),'f1score':Fbeta(b
 test_metrics = {'accuracy':Accuracy(), 'f1score':Fbeta(beta=1.0)}
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-model = EfficientNetB0(num_classes=2, load_imagenet_weights=True).to(device)
+model = EfficientNetB0(num_classes=n_classes, load_imagenet_weights=True).to(device)
 
 # encapsulate data into dataloader form
-img_transform = get_image_transform(IMG_SIZE)
+img_transform = train_transform
+val_transform = val_transform
 
 if args.supervised_only:
     dataset_type = 'supervised_only'
 else:
-    dataset_type = 'fully_supervised'
-
+    raise ValueError(f'dataset_type got {args.supervised_only}, expected supervised_only')
 train_dataset = get_train_dataset(img_transform=img_transform,dataset_type=dataset_type)
-val_dataset = get_val_dataset(img_transform=img_transform)
-test_dataset = get_test_dataset(img_transform=img_transform)
+val_dataset = get_val_dataset(img_transform=val_transform)
+test_dataset = get_test_dataset(img_transform=val_transform)
 
 # for reproducibility, seed the dataloader worker thread
 g = torch.Generator()
@@ -146,7 +145,7 @@ date_time = strftime("%Y-%m-%d %H:%M:%S", gmtime())
 
 # Checkpoint to store n_saved best models wrt score function
 model_checkpoint = ModelCheckpoint(
-    f"checkpoint/{dataset_type}/{date_time}",
+    f"checkpoint/{DATASET_NAME}/{dataset_type}/{date_time}",
     n_saved=2,
     filename_prefix="best",
     score_function=score_function,
@@ -160,7 +159,7 @@ model_checkpoint = ModelCheckpoint(
 val_evaluator.add_event_handler(Events.COMPLETED, model_checkpoint, {"model": model})
 
 # Define a Tensorboard logger
-tb_logger = TensorboardLogger(log_dir=f"tb-logger/{dataset_type}/{date_time}")
+tb_logger = TensorboardLogger(log_dir=f"tb-logger/{DATASET_NAME}/{dataset_type}/{date_time}")
 
 # Attach handler to plot trainer's loss every 100 iterations
 tb_logger.attach_output_handler(
@@ -184,7 +183,7 @@ for tag, evaluator in [("training", train_evaluator), ("validation", val_evaluat
 trainer.run(train_loader, max_epochs=NUM_EPOCHS)
 
 # Load best validation model and report test accuracy
-ckpt_path = get_latest_checkpoint(f'checkpoint/{dataset_type}')
+ckpt_path = get_latest_checkpoint(f'checkpoint/{DATASET_NAME}/{dataset_type}')
 checkpoint_dict = torch.load(ckpt_path, map_location=device) 
 model.load_state_dict(checkpoint_dict)
 test_evaluator.run(test_loader)

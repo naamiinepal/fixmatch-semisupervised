@@ -21,6 +21,18 @@ def get_image_transform(IMG_SIZE):
         ]
     )
     return data_transform
+
+def get_val_transform(IMG_SIZE):
+    data_transform = transforms.Compose(
+        [
+            transforms.Lambda(PIL.Image.open),
+            transforms.ToTensor(),
+            transforms.Resize(size=(IMG_SIZE,IMG_SIZE),antialias=True),
+            transforms.Normalize(mean=[0.5], std=[0.5]),
+        ]
+    )
+    return data_transform
+    
 def get_image_strong_augment_nocolor_transform(IMG_SIZE, num_aug_operations=6):
     # additional RandAugment
     data_transform = transforms.Compose(

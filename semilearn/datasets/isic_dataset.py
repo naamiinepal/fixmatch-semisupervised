@@ -1,6 +1,6 @@
 from typing import Union
 import torch
-from semilearn.datasets.augmentations.transforms import get_image_strong_augment_nocolor_transform, get_image_transform, get_image_strong_augment_transform
+from semilearn.datasets.augmentations.transforms import get_image_strong_augment_nocolor_transform, get_image_transform, get_image_strong_augment_transform, get_val_transform
 import torchvision
 from semilearn.datasets.csv_dataset import CSVDataset
 
@@ -14,6 +14,7 @@ test_csv_path = 'isic_challenge/ISBI2016_ISIC_Part3B_Test_GroundTruth_test.csv'
 
 IMG_SIZE = 224
 img_transform = get_image_transform(IMG_SIZE)
+val_transform = get_val_transform(IMG_SIZE)
 strong_transform = get_image_strong_augment_nocolor_transform(IMG_SIZE)
 
 ISIC_LABELS  = ['benign','malignant']
@@ -39,13 +40,13 @@ def isic_label_transform(label:Union[str,float]):
 
 label_transform = torchvision.transforms.Lambda(isic_label_transform) # because test csv labels are in 0.0,1.0 format
 
-def get_test_dataset(img_transform=img_transform):
+def get_test_dataset(img_transform=val_transform):
     csv_path = test_csv_path
     data_root_dir = test_data_root_dir
 
     return CSVDataset(data_root_dir,csv_path,img_transform,label_transform,is_ulb=False)
 
-def get_val_dataset(img_transform=img_transform):
+def get_val_dataset(img_transform=val_transform):
     csv_path = val_csv_path
     data_root_dir = test_data_root_dir
 
