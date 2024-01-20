@@ -18,6 +18,7 @@ parser.add_argument(
     default=["labelled", "unlabelled"],
 )
 parser.add_argument("--verbose", action="store_true", default=False)
+parser.add_argument('--balanced_split',action='store_true',default=False)
 
 SEED = 98123  # for reproducibility
 random.seed(SEED)
@@ -25,16 +26,29 @@ args = parser.parse_args()
 
 df = pd.read_csv(args.csv, header=None)
 classes = df[1].unique()
-lb_samples_perclass = args.num_labels // len(classes)
+smallest_class_size = np.min([ (df[1] == c).sum() for c in classes])
+if args.balanced_split:
+    # if balanced split, then split the smallest class equally into two sets
+    # the ulb classes will also be split equally of size equal to smallest class
+    lb_samples_perclass = smallest_class_size // 2 
+    ulb_samples_perclass = smallest_class_size // 2
+else:    
+    # split the first set as balanced set, everything else goes into ulb set  
+    lb_samples_perclass = args.num_labels // len(classes)
+    ulb_samples_perclass = None
 
 lb_idx = []
 ulb_idx = []
-# get balanced samples per class
+
+# get balanced samples per class in the first split
 for c in classes:
     idx = np.where(df[1] == c)[0]
     np.random.shuffle(idx)
     lb_idx.extend(idx[:lb_samples_perclass])
-    ulb_idx.extend(idx[lb_samples_perclass:])
+    if args.balanced_split:
+        ulb_idx.extend(idx[lb_samples_perclass: lb_samples_perclass+ulb_samples_perclass])
+    else:
+        ulb_idx.extend(idx[lb_samples_perclass:])
     if args.verbose:
         print(
             f"{c} labelled {lb_samples_perclass} unlabelled {len(df[1]) - lb_samples_perclass}"

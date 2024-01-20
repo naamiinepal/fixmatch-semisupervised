@@ -1,27 +1,34 @@
 from time import gmtime, strftime
 import torch
-from semilearn.core.utils import compute_proba, seed_everything
+from semilearn.core.utils import compute_proba, get_latest_checkpoint, seed_everything
 
 from semilearn.models.model import EfficientNetB0
 import torch.utils.data as data
 from torch import optim
 from torch import nn
-from ignite.metrics import Accuracy, Loss
+from ignite.metrics import Accuracy, Loss,Fbeta
 from ignite.engine import Engine, Events
 from ignite.contrib.handlers.tensorboard_logger import (
     TensorboardLogger,
-    global_step_from_engine,
 )
 from ignite.handlers.checkpoint import ModelCheckpoint
 
 from semilearn.core.criterions.cross_entropy import ce_loss
 from semilearn.datasets.isic_dataset import (
-    get_dataset,
+    get_val_dataset,
+    img_transform,
+    get_test_dataset,
+    get_train_dataset,
     n_classes,
 )
+from argparse import ArgumentParser
+
+parser = ArgumentParser()
+parser.add_argument('--num_epochs',default=30,type=int)
+args = parser.parse_args()
 
 # training settings
-NUM_EPOCHS = 30
+NUM_EPOCHS = args.num_epochs
 BATCH_SIZE = 8
 lr = 0.001
 
@@ -30,7 +37,7 @@ IMG_SIZE = 224
 mu = 5  # ratio of unlabelled to labelled data in a single batch
 P_CUTOFF = 0.95  # softmax threshold cutoff for pseudo label
 lambda_u = 1.0
-
+dataset_type = 'semi-supervised'
 
 SEED = 98123  # for reproducibility
 
@@ -41,14 +48,15 @@ log_interval = 10
 
 criterion = nn.CrossEntropyLoss()
 
-val_metrics = {"accuracy": Accuracy(), "loss": Loss(criterion)}
+val_metrics = {"accuracy": Accuracy(), "loss": Loss(criterion),'f1score':Fbeta(beta=1.0)}
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 model = EfficientNetB0(num_classes=n_classes).to(device)
-train_supervised_only = get_dataset(train=True, dataset_type="supervised_only")
-train_unlabelled = get_dataset(train=True, dataset_type="unlabelled")
-test_dataset = get_dataset(train=False)
+train_supervised_only = get_train_dataset(dataset_type="supervised_only")
+train_unlabelled = get_train_dataset(dataset_type="unlabelled")
+val_dataset = get_val_dataset()
+test_dataset = get_test_dataset()
 
 
 # encapsulate data into dataloader form
@@ -68,7 +76,11 @@ train_loader_at_eval = data.DataLoader(
 )
 
 val_loader = data.DataLoader(
-    dataset=test_dataset, batch_size=2 * BATCH_SIZE, shuffle=False
+    dataset=val_dataset, batch_size=2 * BATCH_SIZE, shuffle=False
+)
+
+test_loader = data.DataLoader(
+    dataset=test_dataset, batch_size=2*BATCH_SIZE,shuffle=False
 )
 
 optimizer = optim.Adam(model.parameters(), lr=lr)
@@ -79,7 +91,9 @@ print(
     len(train_supervised_only),
     "Unlabelled",
     len(train_unlabelled),
-    "Val",
+    'Val',
+    len(val_dataset),
+    "Test",
     len(test_dataset),
 )
 img_batch, label_batch = next(iter(labeled_train_loader))
@@ -87,7 +101,7 @@ weak_img_batch, strong_img_batch, label_batch = next(iter(unlabeled_train_loader
 
 
 # Model Training
-def train_step(labeled_batch_data, unlabeled_batch_data):
+def train_step(labeled_batch_data, unlabeled_batch_data,training_mode):
     model.train()
     inputs, labels = labeled_batch_data[0].to(device), labeled_batch_data[1].to(device)
     optimizer.zero_grad()
@@ -103,6 +117,14 @@ def train_step(labeled_batch_data, unlabeled_batch_data):
 
     unsupervised_pred_logits = model(strongly_augmented_input)
 
+
+    if training_mode == 'supervised':
+        supervised_loss.backward()
+        optimizer.step()
+
+        return {'batch_supervised_loss': supervised_loss.item(),
+                'batch_total_loss':supervised_loss.item()}
+    
     # pseudo label
     with torch.no_grad():
         unlabelled_pred_logits = model(weak_augmented_img)
@@ -152,6 +174,7 @@ def log_training_loss(train_out_dict, state):
 
 train_evaluator = Engine(validation_step)
 val_evaluator = Engine(validation_step)
+test_evaluator = Engine(validation_step)
 
 # attach metrics to evaluators
 for name, metric in val_metrics.items():
@@ -160,22 +183,27 @@ for name, metric in val_metrics.items():
 for name, metric in val_metrics.items():
     metric.attach(val_evaluator, name)
 
+for name, metric in val_metrics.items():
+    metric.attach(test_evaluator, name)
 
-def log_training_results(iteration):
+def log_training_results(epoch):
     train_evaluator.run(train_loader_at_eval)
     metrics = train_evaluator.state.metrics
     print(
-        f"Training Results - Iteration[{iteration}] Avg accuracy: {metrics['accuracy']:.2f} Avg loss: {metrics['loss']:.2f}"
+        f"Training Results - Epoch[{epoch}] Avg accuracy: {metrics['accuracy']:.2f} Avg loss: {metrics['loss']:.2f}"
     )
 
+    for key,val in metrics.items():
+        tb_logger.writer.add_scalar(f'training/{key}',val,global_step=epoch)
 
-def log_validation_results(iteration):
+def log_validation_results(epoch):
     val_evaluator.run(val_loader)
     metrics = val_evaluator.state.metrics
     print(
-        f"Validation Results - Iteration[{iteration}] Avg accuracy: {metrics['accuracy']:.2f} Avg loss: {metrics['loss']:.2f}"
+        f"Validation Results - Epoch[{epoch}] Avg accuracy: {metrics['accuracy']:.2f} Avg loss: {metrics['loss']:.2f}"
     )
-
+    for key,val in metrics.items():
+        tb_logger.writer.add_scalar(f'validation/{key}',val,global_step=epoch)
 
 date_time = strftime("%Y-%m-%d %H:%M:%S", gmtime())
 
@@ -184,22 +212,22 @@ date_time = strftime("%Y-%m-%d %H:%M:%S", gmtime())
 
 # Score function to return current value of any metric we defined above in val_metrics
 def score_function(engine):
-    return engine.state.metrics["accuracy"]
+    return engine.state.metrics["f1score"]
 
 
 model_checkpoint = ModelCheckpoint(
-    f"checkpoint/semi-supervised/{date_time}",
+    f"checkpoint/{dataset_type}/{date_time}",
     n_saved=2,
     filename_prefix="best",
     score_function=score_function,
-    score_name="accuracy",
+    score_name="f1score",
 )
 
 # Save the model after every epoch of val_evaluator is completed
 val_evaluator.add_event_handler(Events.COMPLETED, model_checkpoint, {"model": model})
 
 # Define a Tensorboard logger
-tb_logger = TensorboardLogger(log_dir=f"tb-logger/semi-supervised/{date_time}")
+tb_logger = TensorboardLogger(log_dir=f"tb-logger/{dataset_type}/{date_time}")
 
 # Attach handler for plotting both evaluators' metrics after every epoch completes
 for tag, evaluator in [("training", train_evaluator), ("validation", val_evaluator)]:
@@ -216,7 +244,9 @@ for epoch in range(NUM_EPOCHS):
     for labeled_batch_data, unlabeled_batch_data in zip(
         labeled_train_loader, unlabeled_train_loader
     ):
-        train_out_dict = train_step(labeled_batch_data, unlabeled_batch_data)
+        # for warm-up let us run the model in supervised mode for first 5 epoch
+        training_mode = 'supervised' if epoch < 5 else 'semi-supervised'
+        train_out_dict = train_step(labeled_batch_data, unlabeled_batch_data,training_mode)
 
         if i % log_interval:
             tb_logger.writer.add_scalars(
@@ -224,8 +254,19 @@ for epoch in range(NUM_EPOCHS):
                 train_out_dict,
                 global_step=epoch * len(labeled_train_loader) + i,
             )
-            log_training_loss(train_out_dict, {"epoch": epoch + 1, "iteration": i})
+            log_training_loss(train_out_dict, {"epoch": epoch + 1, "iteration": global_step})
         i = i + 1  # iteration counter
         global_step = global_step + 1
-    log_training_results(global_step)
-    log_validation_results(global_step)
+    log_training_results(epoch)
+    log_validation_results(epoch)
+
+# Load best validation model and report test accuracy
+ckpt_path = get_latest_checkpoint(f'checkpoint/{dataset_type}')
+checkpoint_dict = torch.load(ckpt_path, map_location=device) 
+model.load_state_dict(checkpoint_dict)
+test_evaluator.run(test_loader)
+metrics = test_evaluator.state.metrics
+for key,val in metrics.items():
+    tb_logger.writer.add_scalar(f'test/{key}',val)
+
+tb_logger.close()

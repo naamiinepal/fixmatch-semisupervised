@@ -150,7 +150,7 @@ model_checkpoint = ModelCheckpoint(
     n_saved=2,
     filename_prefix="best",
     score_function=score_function,
-    score_name="accuracy",
+    score_name="f1score",
     global_step_transform=global_step_from_engine(
         trainer
     ),  # helps fetch the trainer's state
@@ -190,6 +190,6 @@ model.load_state_dict(checkpoint_dict)
 test_evaluator.run(test_loader)
 metrics = test_evaluator.state.metrics
 for key,val in metrics.items():
-    tb_logger.writer.add_scalar(f'test/{key}',val.item())
+    tb_logger.writer.add_scalar(f'test/{key}',val)
 
 tb_logger.close()

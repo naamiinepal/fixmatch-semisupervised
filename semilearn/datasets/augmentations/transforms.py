@@ -21,7 +21,26 @@ def get_image_transform(IMG_SIZE):
         ]
     )
     return data_transform
-
+def get_image_strong_augment_nocolor_transform(IMG_SIZE, num_aug_operations=6):
+    # additional RandAugment
+    data_transform = transforms.Compose(
+        [
+            transforms.Lambda(PIL.Image.open),
+            # aggressive augmentation start
+            transforms.RandomInvert(),
+            transforms.RandomAffine(degrees=45,scale=(0.7,1.3),shear=(0.75,1.5)),
+            # transforms.RandomErasing(),
+            # aggressive augmentation end
+            transforms.RandomVerticalFlip(),
+            transforms.RandomHorizontalFlip(),
+            transforms.Resize(size=(IMG_SIZE+28,IMG_SIZE+28),antialias=True),
+            transforms.RandomCrop(size=(IMG_SIZE, IMG_SIZE)),
+            transforms.ToTensor(),
+            # transforms.RandomAdjustSharpness(sharpness_factor=0.5),
+            transforms.Normalize(mean=[0.5], std=[0.5]),
+        ]
+    )
+    return data_transform    
 
 def get_image_strong_augment_transform(IMG_SIZE,num_aug_operations = 6):
     # additional RandAugment

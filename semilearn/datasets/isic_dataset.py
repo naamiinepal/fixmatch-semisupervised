@@ -1,6 +1,6 @@
 from typing import Union
 import torch
-from semilearn.datasets.augmentations.transforms import get_image_transform, get_image_strong_augment_transform
+from semilearn.datasets.augmentations.transforms import get_image_strong_augment_nocolor_transform, get_image_transform, get_image_strong_augment_transform
 import torchvision
 from semilearn.datasets.csv_dataset import CSVDataset
 
@@ -14,7 +14,7 @@ test_csv_path = 'isic_challenge/ISBI2016_ISIC_Part3B_Test_GroundTruth_test.csv'
 
 IMG_SIZE = 224
 img_transform = get_image_transform(IMG_SIZE)
-strong_transform = get_image_strong_augment_transform(IMG_SIZE)
+strong_transform = get_image_strong_augment_nocolor_transform(IMG_SIZE)
 
 ISIC_LABELS  = ['benign','malignant']
 ISIC_LABELS_TO_IDX = {l:idx for idx, l in enumerate(ISIC_LABELS)}
