@@ -10,4 +10,4 @@ def seed_everything(SEED):
     torch.manual_seed(SEED)
     random.seed(SEED)
     np.random.seed(SEED)
-    torch.use_deterministic_algorithms(True)
+    torch.use_deterministic_algorithms(False)

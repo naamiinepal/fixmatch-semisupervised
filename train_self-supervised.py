@@ -22,7 +22,7 @@ from semilearn.datasets.isic_dataset import (
 
 # training settings
 NUM_EPOCHS = 30
-BATCH_SIZE = 16
+BATCH_SIZE = 8
 lr = 0.001
 
 # dataset settings
@@ -161,19 +161,19 @@ for name, metric in val_metrics.items():
     metric.attach(val_evaluator, name)
 
 
-def log_training_results():
+def log_training_results(iteration):
     train_evaluator.run(train_loader_at_eval)
     metrics = train_evaluator.state.metrics
     print(
-        f"Training Results - Epoch[{train_evaluator.state.epoch}] Avg accuracy: {metrics['accuracy']:.2f} Avg loss: {metrics['loss']:.2f}"
+        f"Training Results - Iteration[{iteration}] Avg accuracy: {metrics['accuracy']:.2f} Avg loss: {metrics['loss']:.2f}"
     )
 
 
-def log_validation_results():
+def log_validation_results(iteration):
     val_evaluator.run(val_loader)
     metrics = val_evaluator.state.metrics
     print(
-        f"Validation Results - Epoch[{val_evaluator.state.epoch}] Avg accuracy: {metrics['accuracy']:.2f} Avg loss: {metrics['loss']:.2f}"
+        f"Validation Results - Iteration[{iteration}] Avg accuracy: {metrics['accuracy']:.2f} Avg loss: {metrics['loss']:.2f}"
     )
 
 
@@ -210,7 +210,7 @@ for tag, evaluator in [("training", train_evaluator), ("validation", val_evaluat
         metric_names="all",
     )
 
-
+global_step = 0
 for epoch in range(NUM_EPOCHS):
     i = 0
     for labeled_batch_data, unlabeled_batch_data in zip(
@@ -226,5 +226,6 @@ for epoch in range(NUM_EPOCHS):
             )
             log_training_loss(train_out_dict, {"epoch": epoch + 1, "iteration": i})
         i = i + 1  # iteration counter
-    log_training_results()
-    log_validation_results()
+        global_step = global_step + 1
+    log_training_results(global_step)
+    log_validation_results(global_step)
