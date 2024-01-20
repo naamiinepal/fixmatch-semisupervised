@@ -8,12 +8,13 @@ import torch
 import torch.utils.data as data
 from torch import optim
 from torch import nn
-from ignite.metrics import Accuracy, Loss
-from semilearn.core.utils import seed_everything
+from ignite.metrics import Accuracy, Loss, Precision, Recall,Fbeta
+
+from semilearn.core.utils import get_latest_checkpoint, seed_everything
 
 from semilearn.models.model import EfficientNetB0
 from semilearn.datasets.augmentations.transforms import get_image_transform
-from semilearn.datasets.isic_dataset import get_dataset
+from semilearn.datasets.isic_dataset import get_test_dataset, get_train_dataset, get_val_dataset
 from argparse import ArgumentParser
 
 SEED = 98123  # for reproducibility
@@ -26,10 +27,10 @@ seed_everything(SEED)  # additionally seed the torch generator
 
 parser = ArgumentParser()
 parser.add_argument('--supervised_only','-so',default=False,action='store_true')
-
+parser.add_argument('--num_epochs',default=30,type=int)
 args = parser.parse_args()
 
-NUM_EPOCHS = 30
+NUM_EPOCHS = args.num_epochs
 BATCH_SIZE = 16
 lr = 0.001
 IMG_SIZE = 224
@@ -39,7 +40,8 @@ log_interval = 10
 
 criterion = nn.CrossEntropyLoss()
 
-val_metrics = {"accuracy": Accuracy(), "loss": Loss(criterion)}
+val_metrics = {"accuracy": Accuracy(), "loss": Loss(criterion),'f1score':Fbeta(beta=1.0)}
+test_metrics = {'accuracy':Accuracy(), 'f1score':Fbeta(beta=1.0)}
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -53,8 +55,9 @@ if args.supervised_only:
 else:
     dataset_type = 'fully_supervised'
 
-train_dataset = get_dataset(img_transform=img_transform, train=True,dataset_type=dataset_type)
-test_dataset = get_dataset(img_transform=img_transform, train=False)
+train_dataset = get_train_dataset(img_transform=img_transform,dataset_type=dataset_type)
+val_dataset = get_val_dataset(img_transform=img_transform)
+test_dataset = get_test_dataset(img_transform=img_transform)
 
 # for reproducibility, seed the dataloader worker thread
 g = torch.Generator()
@@ -66,8 +69,9 @@ train_loader_at_eval = data.DataLoader(
     dataset=train_dataset, batch_size=2 * BATCH_SIZE, shuffle=False
 )
 val_loader = data.DataLoader(
-    dataset=test_dataset, batch_size=2 * BATCH_SIZE, shuffle=False
+    dataset=val_dataset, batch_size=2 * BATCH_SIZE, shuffle=False
 )
+test_loader = data.DataLoader(dataset=test_dataset,batch_size=2*BATCH_SIZE,shuffle=False)
 
 batch = next(iter(train_loader))
 optimizer = optim.Adam(model.parameters(), lr=lr)
@@ -96,7 +100,7 @@ trainer = Engine(supervised_train_step)
 
 train_evaluator = Engine(validation_step)
 val_evaluator = Engine(validation_step)
-
+test_evaluator = Engine(validation_step)
 
 # attach metrics to evaluators
 for name, metric in val_metrics.items():
@@ -105,6 +109,8 @@ for name, metric in val_metrics.items():
 for name, metric in val_metrics.items():
     metric.attach(val_evaluator, name)
 
+for name, metric in test_metrics.items():
+    metric.attach(test_evaluator, name)
 
 @trainer.on(Events.ITERATION_COMPLETED(every=log_interval))
 def log_training_loss(engine):
@@ -133,7 +139,7 @@ def log_validation_results(trainer):
 
 # Score function to return current value of any metric we defined above in val_metrics
 def score_function(engine):
-    return engine.state.metrics["accuracy"]
+    return engine.state.metrics["f1score"]
 
 
 date_time = strftime("%Y-%m-%d %H:%M:%S", gmtime())
@@ -176,5 +182,14 @@ for tag, evaluator in [("training", train_evaluator), ("validation", val_evaluat
 
 
 trainer.run(train_loader, max_epochs=NUM_EPOCHS)
+
+# Load best validation model and report test accuracy
+ckpt_path = get_latest_checkpoint(f'checkpoint/{dataset_type}')
+checkpoint_dict = torch.load(ckpt_path, map_location=device) 
+model.load_state_dict(checkpoint_dict)
+test_evaluator.run(test_loader)
+metrics = test_evaluator.state.metrics
+for key,val in metrics.items():
+    tb_logger.writer.add_scalar(f'test/{key}',val.item())
 
 tb_logger.close()
