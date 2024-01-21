@@ -1,15 +1,44 @@
+This codebase is adapted from https://github.com/microsoft/Semi-supervised-learning
 
-Here, we assume that there are only NUM_LABELS training samples, and large number of unlabelled images such that
-UNLABELLED_SAMPLES >> LABELLED_SAMPLES.
+## Getting Started
 
-This is quite common in real-world where annotation is expensive but unlabelled data are relatively available in abundance.
+To get a local copy up, running follow these simple example steps.
 
-We work through code example (FixMatch Algorithm, in this case) to leverage unlabelled data for better representation learning.
+### Prerequisites
 
-The basic idea here is to 
+To install the required packages, you can create a conda environment:
 
-i) train the model using limited labelled data
-ii) as the model is getting trained, use the trained model to obtain (pseudo)labels for which the model is relatively certain (P_CUTOFF)
-iii) and then obtain a aggressively modified version of the image and train the model to predict the above mentioned (in ii) 
-In actual implementation 
+```sh
+conda create --name usb python=3.8
+conda activate usb
+```
+
+then use pip to install required packages:
+
+```sh
+pip install -r requirements.txt
+```
+
+### Download and Preprocess data
+
+This code base is adapted on Two Dataset - MedNIST, Skin Lesion Dataset
+
+```shell
+sh scripts/preprocess_isic.sh
+```
+
+
+To start training on small labelled dataset
+```sh
+python train_supervised_mednist.py --supervised_only --num_epochs 30
+```
+To start training on small labelled  + unlabelled dataset
+```sh
+python train_semi-supervised_skin_cancer.py --num_epochs 30
+``` 
+
+To run tensorboard visualization
+```sh
+tensorboard --logdir tb-logger
+```
 
